@@ -68,7 +68,7 @@ public class TrainingService extends Service{
     private long idle2;
     private BroadcastReceiver batteryReceiver;
 	
-	private long mobileVol= 0;
+	
 	private String ScreenBri;
 	private String VolumeMus;
 	private String WifiStatus;
@@ -76,7 +76,11 @@ public class TrainingService extends Service{
 	private int brightness =-1;
 	private int batterylevel=0;
 	private float voltagelevel=0.0f;
-	private String currentSignalStrenght = "0";
+	private int currentSignalStrenght = 0;
+	private long lastVoltage = 0;
+	private long lastTime = 0;
+	private long mobileVol= 0;
+	private long lastWIFI = 0;
 	
 	private int memTotal = 0;
 	private int memFree = 0;
@@ -158,7 +162,7 @@ public class TrainingService extends Service{
     	@Override
     	public void onSignalStrengthsChanged(SignalStrength signalStrength){
     		super.onSignalStrengthsChanged(signalStrength);
-    		currentSignalStrenght = String.valueOf(signalStrength.getGsmSignalStrength());
+    		currentSignalStrenght = signalStrength.getGsmSignalStrength();
     	}
     };
 	private class TimerThread extends Thread{
@@ -168,9 +172,14 @@ public class TrainingService extends Service{
     	}
     	public void run() {
     		try {
+    			//initialize delta variables
+    			lastWIFI = getTotalWIFIBytes();
+    			lastTime = getCurrentTime();
+    			lastVoltage = getCurrentVoltage();
+    			
     			while (!Thread.interrupted()) {
 	    			Log.i("frost","Running Service");
-	    			mobileVol = Integer.parseInt(TrainingService.this.getTotalMobileBytes());
+	    			mobileVol = getTotalWIFIBytes();
 					Thread.sleep(1000);
 					writeFlag++;
 					if (writeFlag == 30)
@@ -184,20 +193,14 @@ public class TrainingService extends Service{
 						infoToWrite = "";
 						writeFlag = 0;
 					}
-	    			infoToWrite+=TrainingService.this.getCurrentTime()+'\t'
+					//All keys: "wifi" "cpu" "screen" "3g" "audio" "constant"
+	    			infoToWrite+= TrainingService.this.getCurrentTime()+'\t'
+	    						 +TrainingService.this.getDeltaWIFIBytes()+'\t'
 	    						 +TrainingService.this.getCpuUsage()+'\t'
-	    						 //+TrainingService.this.getIOUsage()+'\t'
-	    					     //+TrainingService.this.getBattery()+'\t'
 	    					     +TrainingService.this.getBrightness()+'\t'
-	    					     //+TrainingService.this.getGPS()+'\t'
-	    					     +TrainingService.this.getVolume()+'\t'
-	    					     //+TrainingService.this.getSignalStrength()+'\t'
-	    					     //TrainingService.this.getTotalMobileBytes()+'\t'
 	    					     +TrainingService.this.getNET()+'\t'
-	    					     +TrainingService.this.getTotalWIFIBytes()+'\t'
-	    					     //+TrainingService.this.getCurrent()+'\t'
-	    					     +TrainingService.this.getVoltage()
-	    					     ;
+	    					     +TrainingService.this.getVolume()+'\t'
+	    					     +TrainingService.this.getDeltaVoltage();
 	    			infoToWrite+='\n';
     			}
     		} catch (InterruptedException e) {
@@ -213,12 +216,18 @@ public class TrainingService extends Service{
 		// TODO Auto-generated method stub
 		return null;
 	}
-	public String getCurrentTime(){
+	public long getCurrentTime(){
     	long absoluteTimeEnd;
     	Calendar rightNow = Calendar.getInstance();
     	absoluteTimeEnd = rightNow.getTimeInMillis()/1000;
-    	return String.valueOf(absoluteTimeEnd);
+    	return absoluteTimeEnd;
     }
+	public long getDeltaTime(){
+		long currentTime = getCurrentTime();
+		long delta = currentTime - lastTime;
+		lastTime = currentTime;
+		return delta;
+	}
   
     public void refreshCPUIOUsage()
   	{
@@ -236,24 +245,24 @@ public class TrainingService extends Service{
             ex.printStackTrace();
         }
   	 }
-  	public String getCpuUsage()
+  	public float getCpuUsage()
   	{
   		refreshCPUIOUsage();
-  		return String.valueOf(CpuUsage);
+  		return CpuUsage;
   	}
-  	public String getBattery()
+  	public int getBattery()
  	 {
-  		return String.valueOf(batterylevel);
+  		return batterylevel;
  	 }
-	public String getBrightness() {
+	public int getBrightness() {
 		// TODO Auto-generated method stub
 		int value = 0;
 		ContentResolver cr = this.getContentResolver();
 		try {value = Settings.System.getInt(cr, Settings.System.SCREEN_BRIGHTNESS);} 
 		catch (SettingNotFoundException e) {}
-		return String.valueOf(value);
+		return value;
 	}
-	public String getVolume(){
+	public int getVolume(){
 		AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 		int currentSys = am.getStreamVolume( AudioManager.STREAM_SYSTEM ); 
         int currentTalk = am.getStreamVolume( AudioManager.STREAM_VOICE_CALL );
@@ -261,19 +270,19 @@ public class TrainingService extends Service{
         int currentMusic = am.getStreamVolume( AudioManager.STREAM_MUSIC );
         int currentAlarm = am.getStreamVolume( AudioManager.STREAM_ALARM );
         if (am.isMusicActive())
-        	return String.valueOf(currentMusic);   //now only return the system volume, change it if needed 
-        else return "0";
+        	return currentMusic;   //now only return the system volume, change it if needed 
+        else return 0;
 	}
-	public String getGPS() {
+	public int getGPS() {
 		// TODO Auto-generated method stub
 		String str = Settings.System.getString(getContentResolver(),  Settings.System.LOCATION_PROVIDERS_ALLOWED);
 		if (str.contains("gps"))
-			return "1";
-		else return "0";
+			return 1;
+		else return 0;
 	}
-	public String getNET() {
+	public int getNET() {
 		String ans="0";
-		long currentMobileVol = Integer.parseInt(TrainingService.this.getTotalMobileBytes());
+		long currentMobileVol = TrainingService.this.getTotalMobileBytes();
 		
 		ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
 		if(connectivityManager!=null){
@@ -281,21 +290,21 @@ public class TrainingService extends Service{
 				if(networkInfo!=null){
 					ans = networkInfo.getSubtypeName();
 					if (ans.equalsIgnoreCase("HSPA"))
-						return "3";
+						return 3;
 					else if (ans.equalsIgnoreCase("UMTS"))
 					{
 						if (currentMobileVol == this.mobileVol)
-							return "1";
-						else return "2";
+							return 1;
+						else return 2;
 					} 
 				}
 		}
-		return "0";
+		return 0;
 	}
-	public String getSignalStrength(){
+	public int getSignalStrength(){
 		return currentSignalStrenght;
 	}
-	public String getBluetooth() {
+	public int getBluetooth() {
 		// TODO Auto-generated method stub
 		if(bluetooth != null) 
 		{
@@ -309,30 +318,45 @@ public class TrainingService extends Service{
 				case BluetoothAdapter.STATE_TURNING_ON :
 				case BluetoothAdapter.STATE_ON :
 				}
-				return "1";
+				return 1;
 			} 
 			else
 			{    
-				return "0";
+				return 0;
 			}
 			
 		}  
-		return "-1";//identify no bluetooth device is found
+		return -1;//identify no bluetooth device is found
 	}
-	public String getTotalMobileBytes()
+	public long getTotalMobileBytes()
 	{
 		long total =this.standStats.getMobileRxBytes()+this.standStats.getMobileTxBytes();
-		return String.valueOf(total);
+		return total;
 	}
-	public String getTotalWIFIBytes()
+	public long getTotalWIFIBytes()
 	{
 		long total =this.standStats.getTotalRxBytes()+this.standStats.getTotalTxBytes()
 					-this.standStats.getMobileRxBytes()-this.standStats.getMobileTxBytes();
-		return String.valueOf(total);
+		return total;
 	}
-	public String getVoltage()
+	public long getDeltaWIFIBytes()
 	{
+		long currentWIFI = getTotalWIFIBytes();
+		long delta = currentWIFI - lastWIFI;
+		lastWIFI = currentWIFI;
+		return delta;
+	}
+	public long getCurrentVoltage(){
 		VoltageReader vr = new VoltageReader();
 		return vr.getVoltage();
+	}
+	public long getDeltaVoltage()
+	{
+		long currentVoltage = getCurrentVoltage();
+		if (currentVoltage == -1)
+			return -1;
+		long delta = currentVoltage - lastVoltage;
+		lastVoltage = currentVoltage;
+		return delta;
 	}
 }
