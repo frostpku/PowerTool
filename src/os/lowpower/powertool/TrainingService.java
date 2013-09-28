@@ -41,7 +41,6 @@ import android.widget.Toast;
 
 public class TrainingService extends Service{
 
-
 	private BluetoothAdapter bluetooth;
 	private TimerThread mthread;
 	private float CpuUsage;
@@ -55,6 +54,7 @@ public class TrainingService extends Service{
     
 	private static final File statFile = new File("/proc/stat");
 	private static final File memFile = new File("/proc/meminfo");
+	private PowerDataIO vUpdateIO;
 	private  InputStreamReader isr = null;
     private  BufferedReader brStat ;
     private  BufferedReader brMem; 
@@ -73,34 +73,65 @@ public class TrainingService extends Service{
 	private String VolumeMus;
 	private String WifiStatus;
 	private String Power;
-	private int brightness =-1;
-	private int batterylevel=0;
-	private float voltagelevel=0.0f;
-	private int currentSignalStrenght = 0;
-	private long lastVoltage = 0;
-	private long lastTime = 0;
-	private long mobileVol= 0;
-	private long lastWIFI = 0;
+	private int brightness;
+	private int batterylevel;
+	private float voltagelevel;
+	private int currentSignalStrenght;
+	private long lastVoltage;
+	private long lastTime;
+	private long mobileVol;
+	private long lastWIFI;
 	
-	private int memTotal = 0;
-	private int memFree = 0;
+	private int memTotal;
+	private int memFree;
     
-	private String infoToWrite="";
+	private String infoToWrite;
 	private PowerDataIO mIO;
 	private TelephonyManager Tel;
 	private MyPhoneStateListener MyListener;
-	private boolean serviceOn = false;
+	private boolean serviceOn;
+	public long VUpdateTime;
+	private getVRateThread t_v;
 
 	//attention: TrafficStats is not supported before android 2.2, so for earlier platforms,
 	//consider using MTrafficStats, which I wrote to achieve the same effect as TrafficStats.
 	//MTrafficStats myStats;
 	private TrafficStats standStats;
 	
-	private boolean profiling = false;
-	private int writeFlag = 0;
+	private boolean profiling;
+	private int writeFlag;
 	
+	public void initVaribles(){
+		brightness =-1;
+		batterylevel=0;
+		voltagelevel=0.0f;
+		currentSignalStrenght = 0;
+		lastVoltage = 0;
+		lastTime = 0;
+		mobileVol= 0;
+		lastWIFI = 0;
+		
+		memTotal = 0;
+		memFree = 0;
+		serviceOn = false;
+		VUpdateTime = 0;
+		profiling = false;
+		writeFlag = 0;
+	    infoToWrite="";
+	}
+	private boolean checkVUpdateTime()
+	{
+		vUpdateIO = new PowerDataIO("/sdcard/","vUpdateTime");
+		vUpdateIO.DataIntoSD(str);
+	}
 	public void onCreate() {
 		  super.onCreate();
+		  initVaribles();
+		  if (t_v == null)
+		  {
+			  t_v = new getVRateThread();
+			  t_v.start();
+		  }
 		  startTraining();
 	}
 	public void onStart(Intent intent, int startId, Context context) {  
@@ -110,6 +141,10 @@ public class TrainingService extends Service{
 	public void onDestroy() {
 	      super.onDestroy();
 	      stopTraining();
+	}
+	public void setVUpdateRate(long l)
+	{
+		VUpdateTime = l;
 	}
 	void startTraining(){
 		if (profiling)
@@ -165,6 +200,74 @@ public class TrainingService extends Service{
     		currentSignalStrenght = signalStrength.getGsmSignalStrength();
     	}
     };
+    //not used right now.
+    private class setCPUThread extends Thread{
+    	public setCPUThread()
+    	{
+    		
+    	}
+    	public void run(){
+    		while (!Thread.interrupted()){
+    			for (int i = 0; i < 100000; i++)
+    				;
+    			try {
+					Thread.sleep(1);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+    		}
+    	} 	
+    }
+    private class getVRateThread extends Thread{
+    	long startT;
+    	long endT;
+    	boolean started;
+    	boolean finished;
+    	long lastV;
+    	long currentV;
+    	//setCPUThread t_cpu;
+    	public getVRateThread()
+    	{	
+    		startT= 0;
+    		endT = 0;
+    		started = false;
+    		lastV = 0;
+    		//t_cpu = new setCPUThread();
+    	}
+    	public void run()
+    	{
+    		while (!Thread.interrupted()){
+	    		try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+	    		if (!started)
+	    		{
+	    			lastV = getCurrentVoltage();
+	    			started = true;
+	    		}
+	    		else{
+	    			currentV = getCurrentVoltage();
+	    			if (startT == 0  && currentV!=lastV)
+	    			{
+	    				startT = getCurrentTime();
+	    			}
+	    			else if (endT == 0 && currentV != lastV)
+	    			{
+	    				endT = getCurrentTime();
+	    				TrainingService.this.VUpdateTime = endT - startT ;
+	    				this.interrupt();
+	    				return;
+	    			}
+	    			lastV = currentV;
+	    		}
+    		}
+    	}
+    }
+    
 	private class TimerThread extends Thread{
     	public TimerThread()
     	{
@@ -172,6 +275,14 @@ public class TrainingService extends Service{
     	}
     	public void run() {
     		try {
+    			
+    			while (TrainingService.this.VUpdateTime == 0)
+    				sleep(1);
+    			if (t_v != null)
+    			{
+	    			t_v.interrupt();
+	    			t_v = null;
+    			}
     			//initialize delta variables
     			lastWIFI = getTotalWIFIBytes();
     			lastTime = getCurrentTime();
@@ -180,7 +291,7 @@ public class TrainingService extends Service{
     			while (!Thread.interrupted()) {
 	    			Log.i("frost","Running Service");
 	    			mobileVol = getTotalWIFIBytes();
-					Thread.sleep(1000);
+					Thread.sleep(VUpdateTime*1000);
 					writeFlag++;
 					if (writeFlag == 30)
 					{
@@ -194,13 +305,13 @@ public class TrainingService extends Service{
 						writeFlag = 0;
 					}
 					//All keys: "wifi" "cpu" "screen" "3g" "audio" "constant"
-	    			infoToWrite+= TrainingService.this.getCurrentTime()+'\t'
-	    						 +TrainingService.this.getDeltaWIFIBytes()+'\t'
-	    						 +TrainingService.this.getCpuUsage()+'\t'
-	    					     +TrainingService.this.getBrightness()+'\t'
-	    					     +TrainingService.this.getNET()+'\t'
-	    					     +TrainingService.this.getVolume()+'\t'
-	    					     +TrainingService.this.getDeltaVoltage();
+	    			infoToWrite+= String.valueOf(getCurrentTime())+'\t'
+	    						 +String.valueOf(getDeltaWIFIBytes())+'\t'
+	    						 +String.valueOf(getCpuUsage())+'\t'
+	    					     +String.valueOf(getBrightness())+'\t'
+	    					     +String.valueOf(getNET())+'\t'
+	    					     +String.valueOf(getVolume())+'\t'
+	    					     +String.valueOf(getCurrentVoltage());
 	    			infoToWrite+='\n';
     			}
     		} catch (InterruptedException e) {

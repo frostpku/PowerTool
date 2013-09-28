@@ -30,6 +30,11 @@ public class PowerDataIO
 		if(!file.exists()) 
 			file.createNewFile();
 	}
+	public PowerDataIO(String iPath, String iName) throws IOException
+	{
+		Path = iPath;
+		FileName = iName;
+	}
 
 	public void deleteData() throws IOException
 	{
