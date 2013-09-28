@@ -34,6 +34,9 @@ public class PowerDataIO
 	{
 		Path = iPath;
 		FileName = iName;
+		file = new File(Path + FileName);
+		if(!file.exists()) 
+			file.createNewFile();
 	}
 
 	public void deleteData() throws IOException
@@ -46,6 +49,17 @@ public class PowerDataIO
 	}
 	public void DataIntoSD(String str) throws IOException {
 		fw = new FileWriter(file,true);
+		bw = new BufferedWriter(fw);
+		
+		bw.write(str);
+		bw.write(13);
+		bw.write(10);
+
+		bw.close();
+		fw.close();
+	}
+	public void DataOverwrittenIntoSD(String str)throws IOException {
+		fw = new FileWriter(file,false);
 		bw = new BufferedWriter(fw);
 		
 		bw.write(str);

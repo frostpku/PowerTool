@@ -1,12 +1,10 @@
 package os.lowpower.powertool;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileNotFoundException;
+
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.util.Calendar;
+import java.util.regex.Pattern;
 
 
 import android.app.Service;
@@ -16,12 +14,10 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.graphics.PixelFormat;
 import android.media.AudioManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.TrafficStats;
-import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.provider.Settings;
 import android.provider.Settings.SettingNotFoundException;
@@ -29,13 +25,6 @@ import android.telephony.PhoneStateListener;
 import android.telephony.SignalStrength;
 import android.telephony.TelephonyManager;
 import android.util.Log;
-import android.view.GestureDetector;
-import android.view.Gravity;
-import android.view.MotionEvent;
-import android.view.WindowManager;
-import android.view.GestureDetector.OnGestureListener;
-import android.view.WindowManager.LayoutParams;
-import android.widget.ImageView;
 import android.widget.Toast;
 
 
@@ -44,54 +33,26 @@ public class TrainingService extends Service{
 	private BluetoothAdapter bluetooth;
 	private TimerThread mthread;
 	private float CpuUsage;
-	private float memUsage;
-	private float IOUsage;
-	private float CpuA;
-	private float CpuB;
-	private int iowaitStart;
-	private int iowaitEnd;
-  
-    
-	private static final File statFile = new File("/proc/stat");
-	private static final File memFile = new File("/proc/meminfo");
+	
 	private PowerDataIO vUpdateIO;
-	private  InputStreamReader isr = null;
-    private  BufferedReader brStat ;
-    private  BufferedReader brMem; 
-    private  int CpuUserStart;
-    private  int CpuUserEnd;
-    private  int idleEnd;
-    private  int idleStart;
     private long cpu1;
     private long cpu2;
     private long idle1;
     private long idle2;
     private BroadcastReceiver batteryReceiver;
-	
-	
-	private String ScreenBri;
-	private String VolumeMus;
-	private String WifiStatus;
-	private String Power;
-	private int brightness;
 	private int batterylevel;
-	private float voltagelevel;
 	private int currentSignalStrenght;
-	private long lastVoltage;
+	private int lastVoltage;
 	private long lastTime;
 	private long mobileVol;
 	private long lastWIFI;
-	
-	private int memTotal;
-	private int memFree;
     
 	private String infoToWrite;
 	private PowerDataIO mIO;
 	private TelephonyManager Tel;
 	private MyPhoneStateListener MyListener;
-	private boolean serviceOn;
 	public long VUpdateTime;
-	private getVRateThread t_v;
+	private getVTimeThread t_v;
 
 	//attention: TrafficStats is not supported before android 2.2, so for earlier platforms,
 	//consider using MTrafficStats, which I wrote to achieve the same effect as TrafficStats.
@@ -102,34 +63,48 @@ public class TrainingService extends Service{
 	private int writeFlag;
 	
 	public void initVaribles(){
-		brightness =-1;
 		batterylevel=0;
-		voltagelevel=0.0f;
 		currentSignalStrenght = 0;
 		lastVoltage = 0;
 		lastTime = 0;
 		mobileVol= 0;
 		lastWIFI = 0;
-		
-		memTotal = 0;
-		memFree = 0;
-		serviceOn = false;
 		VUpdateTime = 0;
 		profiling = false;
 		writeFlag = 0;
 	    infoToWrite="";
+	    try {
+			vUpdateIO = new PowerDataIO("/sdcard/","vUpdateTime.txt");
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
-	private boolean checkVUpdateTime()
+	private static boolean isNumeric(String str){ 
+	    Pattern pattern = Pattern.compile("[0-9]*"); 
+	    return pattern.matcher(str).matches();    
+	 } 
+	private boolean isVFileValid()
 	{
-		vUpdateIO = new PowerDataIO("/sdcard/","vUpdateTime");
-		vUpdateIO.DataIntoSD(str);
+		try {
+			String tmp;
+			tmp = vUpdateIO.DataFromSD();
+			if (tmp == "" || !isNumeric(tmp))
+				return false;
+			VUpdateTime = Integer.valueOf(tmp);
+			return true;
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return false;
 	}
 	public void onCreate() {
 		  super.onCreate();
 		  initVaribles();
-		  if (t_v == null)
+		  if (!isVFileValid() && t_v == null)
 		  {
-			  t_v = new getVRateThread();
+			  t_v = new getVTimeThread();
 			  t_v.start();
 		  }
 		  startTraining();
@@ -142,10 +117,7 @@ public class TrainingService extends Service{
 	      super.onDestroy();
 	      stopTraining();
 	}
-	public void setVUpdateRate(long l)
-	{
-		VUpdateTime = l;
-	}
+
 	void startTraining(){
 		if (profiling)
 			return;
@@ -169,7 +141,7 @@ public class TrainingService extends Service{
 			{
 				int scale = intent.getIntExtra("scale", 100);
 				batterylevel = (int)((float)intent.getIntExtra("level", 0)*100/scale);
-				voltagelevel = (float)intent.getIntExtra("voltage", 0) ;
+				//voltagelevel = (float)intent.getIntExtra("voltage", 0) ;
 			}
 		}}; 
 		if(mthread==null){
@@ -219,7 +191,7 @@ public class TrainingService extends Service{
     		}
     	} 	
     }
-    private class getVRateThread extends Thread{
+    private class getVTimeThread extends Thread{
     	long startT;
     	long endT;
     	boolean started;
@@ -227,7 +199,7 @@ public class TrainingService extends Service{
     	long lastV;
     	long currentV;
     	//setCPUThread t_cpu;
-    	public getVRateThread()
+    	public getVTimeThread()
     	{	
     		startT= 0;
     		endT = 0;
@@ -269,15 +241,34 @@ public class TrainingService extends Service{
     }
     
 	private class TimerThread extends Thread{
+		private int accBrightness;
+		private int accNET;
+		private int accAudio;
+		
+		private float averCPU;
+		private float averBri;
+		private float averWIFI;
+		private float averNet;
+		private float averAudio;
+		private float averVoltage;
     	public TimerThread()
     	{
     		infoToWrite = "";
+    		accBrightness = 0;
+    		accNET =0;
+    		accAudio =0;
     	}
     	public void run() {
     		try {
     			
     			while (TrainingService.this.VUpdateTime == 0)
     				sleep(1);
+    			try {
+					vUpdateIO.DataOverwrittenIntoSD(String.valueOf(VUpdateTime));
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
     			if (t_v != null)
     			{
 	    			t_v.interrupt();
@@ -291,28 +282,39 @@ public class TrainingService extends Service{
     			while (!Thread.interrupted()) {
 	    			Log.i("frost","Running Service");
 	    			mobileVol = getTotalWIFIBytes();
-					Thread.sleep(VUpdateTime*1000);
-					writeFlag++;
-					if (writeFlag == 30)
+					Thread.sleep(1000);
+					if (writeFlag == VUpdateTime)
 					{
 						try {
+							averCPU = getCpuUsage();
+							averWIFI = (float)getDeltaWIFIBytes();
+							averBri = (float)accBrightness/VUpdateTime;
+							averNet = (float)accNET/VUpdateTime;
+							averAudio = (float) accAudio / VUpdateTime;
+							averVoltage = getDeltaVoltage();
+							infoToWrite= String.valueOf(getCurrentTime())+'\t'
+		    						 +String.valueOf(averWIFI)+'\t'
+		    						 +String.valueOf(averCPU)+'\t'
+		    					     +String.valueOf(averBri)+'\t'
+		    					     +String.valueOf(averNet)+'\t'
+		    					     +String.valueOf(averAudio)+'\t'
+		    					     +String.valueOf(averVoltage);
+							infoToWrite+='\n';
 							mIO.DataIntoSD(infoToWrite);
 						} catch (IOException e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
 						}
-						infoToWrite = "";
 						writeFlag = 0;
+						accBrightness = 0;
+			    		accNET =0;
+			    		accAudio =0;
 					}
+					writeFlag++;
 					//All keys: "wifi" "cpu" "screen" "3g" "audio" "constant"
-	    			infoToWrite+= String.valueOf(getCurrentTime())+'\t'
-	    						 +String.valueOf(getDeltaWIFIBytes())+'\t'
-	    						 +String.valueOf(getCpuUsage())+'\t'
-	    					     +String.valueOf(getBrightness())+'\t'
-	    					     +String.valueOf(getNET())+'\t'
-	    					     +String.valueOf(getVolume())+'\t'
-	    					     +String.valueOf(getCurrentVoltage());
-	    			infoToWrite+='\n';
+					accBrightness += getBrightness();
+		    		accNET +=getNET();
+		    		accAudio +=getVolume();
     			}
     		} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
@@ -457,16 +459,16 @@ public class TrainingService extends Service{
 		lastWIFI = currentWIFI;
 		return delta;
 	}
-	public long getCurrentVoltage(){
+	public int getCurrentVoltage(){
 		VoltageReader vr = new VoltageReader();
 		return vr.getVoltage();
 	}
-	public long getDeltaVoltage()
+	public int getDeltaVoltage()
 	{
-		long currentVoltage = getCurrentVoltage();
+		int currentVoltage = getCurrentVoltage();
 		if (currentVoltage == -1)
 			return -1;
-		long delta = currentVoltage - lastVoltage;
+		int delta = currentVoltage - lastVoltage;
 		lastVoltage = currentVoltage;
 		return delta;
 	}
