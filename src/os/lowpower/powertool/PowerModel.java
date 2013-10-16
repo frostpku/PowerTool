@@ -12,16 +12,24 @@ public class PowerModel{
     //All keys: "wifi" "cpu" "screen" "3g" "audio" "constant"
     
     private double param_screen_none_linear = 0.0f;
+    PowerDataIO modelIO;
     private String[] keyName = {"wifi", "cpu", "screen", "3g", "audio", "constant"};
+    //IO??
     public PowerModel()
     {
         powerParams.clear();
         trainDataFileName = "";
+        try {
+			modelIO = new PowerDataIO("/sdcard/","APT_Model.txt");
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
     }
 
     
 
-    private boolean DoModeling()
+    private boolean calculateParams()
     {
         int paramNum = keyName.length -1;
         int maxDataNum = 604800; // 3600*24*7
@@ -106,7 +114,7 @@ public class PowerModel{
     }
 
   //to check whether this instance is valid, which means all parameters have been generated.
-    public boolean isValid()
+    public boolean isModelValid()
     {
     	for (int i = 0; i < keyName.length; i++)
     	{
@@ -115,11 +123,24 @@ public class PowerModel{
     	}
     	return true;
     }
-    public Map<String, Double> calculateParams(String fileName)
+    public boolean DoModeling(String fileName)
     {
     	trainDataFileName = fileName;
-    	if (DoModeling())
-    		return powerParams;
-    	else return null;
+    	if (calculateParams())
+    	{
+    		String aim="";
+    		for (String str:powerParams.keySet())
+    		{
+    			aim+=str+"\t"+powerParams.get(str)+"\n";
+    		}
+    		try {
+				modelIO.DataIntoSD(aim);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+    		return true;
+    	}
+    	return false;
     }
 }

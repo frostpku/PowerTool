@@ -74,7 +74,7 @@ public class TrainingService extends Service{
 		writeFlag = 0;
 	    infoToWrite="";
 	    try {
-			vUpdateIO = new PowerDataIO("/sdcard/","vUpdateTime.txt");
+			vUpdateIO = new PowerDataIO("/sdcard/","APT_VTime.txt");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -198,6 +198,8 @@ public class TrainingService extends Service{
     	boolean finished;
     	long lastV;
     	long currentV;
+    	long savedT;
+    	int counter;
     	//setCPUThread t_cpu;
     	public getVTimeThread()
     	{	
@@ -205,6 +207,8 @@ public class TrainingService extends Service{
     		endT = 0;
     		started = false;
     		lastV = 0;
+    		counter = 0;
+    		savedT = 0;
     		//t_cpu = new setCPUThread();
     	}
     	public void run()
@@ -216,10 +220,17 @@ public class TrainingService extends Service{
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
+	    		if (counter == 5)
+	    		{
+	    			TrainingService.this.VUpdateTime = (int)savedT/5 +1;
+	    			this.interrupt();
+    				return;
+	    		}
 	    		if (!started)
 	    		{
 	    			lastV = getCurrentVoltage();
 	    			started = true;
+	    			
 	    		}
 	    		else{
 	    			currentV = getCurrentVoltage();
@@ -230,9 +241,10 @@ public class TrainingService extends Service{
 	    			else if (endT == 0 && currentV != lastV)
 	    			{
 	    				endT = getCurrentTime();
-	    				TrainingService.this.VUpdateTime = endT - startT ;
-	    				this.interrupt();
-	    				return;
+	    				savedT += endT - startT;
+	    				startT = endT;
+	    				endT = 0;
+	    				counter++;
 	    			}
 	    			lastV = currentV;
 	    		}
@@ -278,6 +290,7 @@ public class TrainingService extends Service{
     			lastWIFI = getTotalWIFIBytes();
     			lastTime = getCurrentTime();
     			lastVoltage = getCurrentVoltage();
+    			VUpdateTime = 1;
     			
     			while (!Thread.interrupted()) {
 	    			Log.i("frost","Running Service");
@@ -292,13 +305,15 @@ public class TrainingService extends Service{
 							averNet = (float)accNET/VUpdateTime;
 							averAudio = (float) accAudio / VUpdateTime;
 							averVoltage = getDeltaVoltage();
+							
 							infoToWrite= String.valueOf(getCurrentTime())+'\t'
 		    						 +String.valueOf(averWIFI)+'\t'
 		    						 +String.valueOf(averCPU)+'\t'
 		    					     +String.valueOf(averBri)+'\t'
 		    					     +String.valueOf(averNet)+'\t'
 		    					     +String.valueOf(averAudio)+'\t'
-		    					     +String.valueOf(averVoltage);
+		    					    // +String.valueOf(averVoltage);
+		    					     +String.valueOf(getCurrentVoltage());
 							infoToWrite+='\n';
 							mIO.DataIntoSD(infoToWrite);
 						} catch (IOException e) {

@@ -15,7 +15,7 @@ import java.util.Map;
 public class PowerDataIO
 {
 	private String Path = "/sdcard/";
-	private String FileName = "PowerToolData.txt";
+	private String FileName = "APT_Data.txt";
 	private File file;
 	private FileWriter fw;
 	private FileReader fr;
@@ -60,6 +60,7 @@ public class PowerDataIO
 	}
 	public void DataOverwrittenIntoSD(String str)throws IOException {
 		fw = new FileWriter(file,false);
+		//fw = new FileWriter(file,true);
 		bw = new BufferedWriter(fw);
 		
 		bw.write(str);
