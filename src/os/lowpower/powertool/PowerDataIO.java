@@ -14,8 +14,8 @@ import java.util.Map;
 
 public class PowerDataIO
 {
-	private String Path = "/sdcard/";
-	private String FileName = "APT_Data.txt";
+	private String Path;
+	private String FileName;
 	private File file;
 	private FileWriter fw;
 	private FileReader fr;
@@ -23,13 +23,6 @@ public class PowerDataIO
 	private BufferedWriter bw;
 	private BufferedReader br;
 	public Map<String, Integer> processMap;
-	public PowerDataIO() throws IOException
-	{
-		//processMap = new HashMap<String, Integer>();
-		file = new File(Path + FileName);
-		if(!file.exists()) 
-			file.createNewFile();
-	}
 	public PowerDataIO(String iPath, String iName) throws IOException
 	{
 		Path = iPath;
@@ -60,7 +53,6 @@ public class PowerDataIO
 	}
 	public void DataOverwrittenIntoSD(String str)throws IOException {
 		fw = new FileWriter(file,false);
-		//fw = new FileWriter(file,true);
 		bw = new BufferedWriter(fw);
 		
 		bw.write(str);

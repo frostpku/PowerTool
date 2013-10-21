@@ -72,12 +72,32 @@ public class PowerTool extends Activity {
             	}
             	else
             	{
-            		settime_react();
+            		setModeling();
             	}
             }
           });
+        this.startProfilingBTN.setOnClickListener(new Button.OnClickListener()
+        {
+            public void onClick(View paramView)
+            {
+            	PowerTool.this.startService(new Intent(PowerTool.this, ProfilingService.class));
+          	  	Toast.makeText(PowerTool.this,  
+                        "Profiling service started.",   
+                        Toast.LENGTH_LONG).show();  
+            }
+          });
+        this.stopProfilingBTN.setOnClickListener(new Button.OnClickListener()
+        {
+            public void onClick(View paramView)
+            {
+            	PowerTool.this.stopService(new Intent(PowerTool.this, ProfilingService.class));
+          	  	Toast.makeText(PowerTool.this,  
+                        "Profiling service killed.",   
+                        Toast.LENGTH_LONG).show();  
+            }
+          });
 	}
-	private void settime_react()
+	private void setModeling()
     {
     	final AlertDialog.Builder dia = new AlertDialog.Builder(PowerTool.this);
     	//final EditText tempEditText = new EditText(PowerTool.this);

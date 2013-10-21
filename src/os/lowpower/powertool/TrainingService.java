@@ -34,12 +34,12 @@ public class TrainingService extends Service{
 	private TimerThread mthread;
 	private float CpuUsage;
 	
-	private PowerDataIO vUpdateIO;
+	private PowerDataIO voltageIO;
+	private PowerDataIO trainingDataIO;
     private long cpu1;
     private long cpu2;
     private long idle1;
     private long idle2;
-    private BroadcastReceiver batteryReceiver;
 	private int batterylevel;
 	private int currentSignalStrenght;
 	private long lastVoltage;
@@ -48,7 +48,7 @@ public class TrainingService extends Service{
 	private long lastWIFI;
     
 	private String infoToWrite;
-	private PowerDataIO mIO;
+	
 	private TelephonyManager Tel;
 	private MyPhoneStateListener MyListener;
 	public long VUpdateTime;
@@ -74,7 +74,7 @@ public class TrainingService extends Service{
 		writeFlag = 0;
 	    infoToWrite="";
 	    try {
-			vUpdateIO = new PowerDataIO("/sdcard/","APT_VTime.txt");
+	    	voltageIO = new PowerDataIO("/sdcard/","APT_VTime.txt");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -88,7 +88,7 @@ public class TrainingService extends Service{
 	{
 		try {
 			String tmp;
-			tmp = vUpdateIO.DataFromSD();
+			tmp = voltageIO.DataFromSD();
 			if (tmp == "" || !isNumeric(tmp))
 				return false;
 			VUpdateTime = Integer.valueOf(tmp);
@@ -124,38 +124,31 @@ public class TrainingService extends Service{
 		profiling = true;
 		writeFlag = 0;
 		try {
-			mIO=new PowerDataIO();
+			trainingDataIO=new PowerDataIO("/sdcard/", "APT_TrainingData.txt");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		standStats = new TrafficStats();
-		MyListener = new MyPhoneStateListener();
-		Tel = ( TelephonyManager )getSystemService(Context.TELEPHONY_SERVICE);
-		Tel.listen(MyListener ,PhoneStateListener.LISTEN_SIGNAL_STRENGTHS);
-		registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
-
-		batteryReceiver=new BroadcastReceiver(){  
-		public void onReceive(Context context, Intent intent) {  
-			if (Intent.ACTION_BATTERY_CHANGED.equals(intent.getAction()))
-			{
-				int scale = intent.getIntExtra("scale", 100);
-				batterylevel = (int)((float)intent.getIntExtra("level", 0)*100/scale);
-				//voltagelevel = (float)intent.getIntExtra("voltage", 0) ;
-			}
-		}}; 
 		if(mthread==null){
 			mthread = new TimerThread();
 			mthread.start();
 		}
+		standStats = new TrafficStats();
+	//  SIGNAL STRENGTH
+		MyListener = new MyPhoneStateListener();
+		Tel = ( TelephonyManager )getSystemService(Context.TELEPHONY_SERVICE);
+		Tel.listen(MyListener ,PhoneStateListener.LISTEN_SIGNAL_STRENGTHS);
+		
+		//  BLUETOOTH
 		bluetooth = BluetoothAdapter.getDefaultAdapter();  
+			
 	}
 	void stopTraining(){
 		if (!profiling)
 			return;
 		profiling = false;
 		try {
-			mIO.DataIntoSD(infoToWrite);
+			trainingDataIO.DataIntoSD(infoToWrite);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -224,7 +217,7 @@ public class TrainingService extends Service{
 	    		{
 	    			TrainingService.this.VUpdateTime = (int)savedT/5 +1;
 	    			try {
-						vUpdateIO.DataOverwrittenIntoSD(String.valueOf(VUpdateTime));
+	    				voltageIO.DataOverwrittenIntoSD(String.valueOf(VUpdateTime));
 					} catch (IOException e1) {
 						// TODO Auto-generated catch block
 						e1.printStackTrace();
@@ -315,7 +308,7 @@ public class TrainingService extends Service{
 		    					    // +String.valueOf(averVoltage);
 		    					     +String.valueOf(getCurrentVoltage());
 							infoToWrite+='\n';
-							mIO.DataIntoSD(infoToWrite);
+							trainingDataIO.DataIntoSD(infoToWrite);
 						} catch (IOException e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
