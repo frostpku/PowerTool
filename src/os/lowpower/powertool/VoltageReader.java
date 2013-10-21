@@ -9,7 +9,7 @@ import android.util.Log;
 
 public class VoltageReader {
 	
-	public int getVoltage()
+	public long getVoltage()
 	{
 		File f = null;
 		f = new File("/sys/class/power_supply/battery/voltage_now");
@@ -19,10 +19,10 @@ public class VoltageReader {
 		}
 		return -1;
 	}
-	public static int getValue(File _f) {
+	public static long getValue(File _f) {
 		
 		Long result = null;
-		
+		String text = null;
 		try {
 			
 		
@@ -30,7 +30,9 @@ public class VoltageReader {
 			
 			DataInputStream ds = new DataInputStream(fs);
 		
-			result = ds.readLong();
+			text = ds.readLine();
+			ds.readLine();
+			
 			ds.close();		
 			fs.close();	
 			
@@ -39,7 +41,24 @@ public class VoltageReader {
 			Log.e("frost", ex.getMessage());
 			ex.printStackTrace();
 		}
-		return getTop7(result);
+		Long value = null;
+		
+		if (text != null)
+		{
+			try
+			{
+				value = Long.parseLong(text);
+			}
+			catch (NumberFormatException nfe)
+			{
+				Log.e("CurrentWidget", nfe.getMessage());
+				value = null;
+			}
+
+		}
+		
+		return value;
+		//return getTop7(result);
 	}
 	private static int getTop7(long x)
 	{

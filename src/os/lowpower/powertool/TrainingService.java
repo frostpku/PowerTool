@@ -42,7 +42,7 @@ public class TrainingService extends Service{
     private BroadcastReceiver batteryReceiver;
 	private int batterylevel;
 	private int currentSignalStrenght;
-	private int lastVoltage;
+	private long lastVoltage;
 	private long lastTime;
 	private long mobileVol;
 	private long lastWIFI;
@@ -223,6 +223,12 @@ public class TrainingService extends Service{
 	    		if (counter == 5)
 	    		{
 	    			TrainingService.this.VUpdateTime = (int)savedT/5 +1;
+	    			try {
+						vUpdateIO.DataOverwrittenIntoSD(String.valueOf(VUpdateTime));
+					} catch (IOException e1) {
+						// TODO Auto-generated catch block
+						e1.printStackTrace();
+					}
 	    			this.interrupt();
     				return;
 	    		}
@@ -275,12 +281,7 @@ public class TrainingService extends Service{
     			
     			while (TrainingService.this.VUpdateTime == 0)
     				sleep(1);
-    			try {
-					vUpdateIO.DataOverwrittenIntoSD(String.valueOf(VUpdateTime));
-				} catch (IOException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				}
+    			
     			if (t_v != null)
     			{
 	    			t_v.interrupt();
@@ -290,7 +291,6 @@ public class TrainingService extends Service{
     			lastWIFI = getTotalWIFIBytes();
     			lastTime = getCurrentTime();
     			lastVoltage = getCurrentVoltage();
-    			VUpdateTime = 1;
     			
     			while (!Thread.interrupted()) {
 	    			Log.i("frost","Running Service");
@@ -474,16 +474,16 @@ public class TrainingService extends Service{
 		lastWIFI = currentWIFI;
 		return delta;
 	}
-	public int getCurrentVoltage(){
+	public long getCurrentVoltage(){
 		VoltageReader vr = new VoltageReader();
 		return vr.getVoltage();
 	}
-	public int getDeltaVoltage()
+	public long getDeltaVoltage()
 	{
-		int currentVoltage = getCurrentVoltage();
+		long currentVoltage = getCurrentVoltage();
 		if (currentVoltage == -1)
 			return -1;
-		int delta = currentVoltage - lastVoltage;
+		long delta = currentVoltage - lastVoltage;
 		lastVoltage = currentVoltage;
 		return delta;
 	}

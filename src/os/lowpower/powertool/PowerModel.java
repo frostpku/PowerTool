@@ -1,6 +1,7 @@
 package os.lowpower.powertool;
 
 import java.io.*;
+import java.text.DecimalFormat;
 import java.util.*;
 
 public class PowerModel{
@@ -32,7 +33,8 @@ public class PowerModel{
     private boolean calculateParams()
     {
         int paramNum = keyName.length -1;
-        int maxDataNum = 604800; // 3600*24*7
+        //int maxDataNum = 604800; // 3600*24*7
+        int maxDataNum = 86400;
         
 
         double[] deltaVotage = new double[maxDataNum];
@@ -46,18 +48,32 @@ public class PowerModel{
             String line;
             String[] arrs;
             long lastTime = 0;
+            long startVoltage =0;
             while ((line = br.readLine()) != null) {
+            	br.readLine();
                 arrs = line.split("\\t");
                 int i;
-                //adjacent events' time should be less than 1 seconds, otherwise regarded as invalid events.
-                if (Long.valueOf(arrs[0]) -lastTime ==1)
+                
+                if (Long.valueOf(arrs[0]) -lastTime >=100)
                 {
+                	startVoltage =Long.valueOf(arrs[paramNum+1]);
+                	lastTime = Long.valueOf(arrs[0]);
+                	continue;
+                }
+              //adjacent events' time should be less than 5 seconds, otherwise regarded as invalid events.
+                if (Long.valueOf(arrs[0]) -lastTime <=5)
+                {
+                	lastTime = Long.valueOf(arrs[0]);
+                	Long deltaV = Long.valueOf(arrs[paramNum+1]) - startVoltage;
+                	//if (deltaV >= 8000 || deltaV <= -8000)
+                	//{
+                	//	continue;
+                	//}
                 	for (i = 1; i <= paramNum; i++) 
                 	{
                 		data[i-1][dataNum] = Double.valueOf(arrs[i]);
                 	}
-                	lastTime = Long.valueOf(arrs[0]);
-                	deltaVotage[dataNum] = Double.valueOf(arrs[i+1]);
+                	deltaVotage[dataNum] = deltaV;
                     dataNum++;
                 }
                 
@@ -72,14 +88,36 @@ public class PowerModel{
             e.printStackTrace();
             return false;
         }
+        
+        //for testing, delete in final version!!!
+        PowerDataIO filteredDataIO;
+        DecimalFormat dcmFmt = new DecimalFormat("0.00");
+        try {
+        	filteredDataIO = new PowerDataIO("/sdcard/","APT_filterDATA.txt");
+        	filteredDataIO.DataIntoSD("============");
+        	for (int i = 0 ; i < dataNum; i++)
+            {
+        		String tmp="";
+        		for (int j = 0; j < paramNum; j++)
+        		{
+        			tmp += String.valueOf(data[j][i]) + "\t";
+        		}
+        		tmp+=deltaVotage[i];
+        		filteredDataIO.DataIntoSD(tmp);
+            }
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+        
 
         boolean[] isZero = new boolean[paramNum];
         double[][] newData = new double[paramNum][maxDataNum];
         int p = 0;
         for (int i = 0; i < paramNum; i++) {
             isZero[i] = true;
-            for (int j = 0; j < dataNum; j++) {
-                if (data[i][j] != 0) {
+            for (int j = 1; j < dataNum; j++) {
+                if (data[i][j] != data[i][0]) {
                     isZero[i] = false;
                     break;
                 }
@@ -126,12 +164,13 @@ public class PowerModel{
     public boolean DoModeling(String fileName)
     {
     	trainDataFileName = fileName;
+    	DecimalFormat dcmFmt = new DecimalFormat("0.00000");
     	if (calculateParams())
     	{
     		String aim="";
     		for (String str:powerParams.keySet())
     		{
-    			aim+=str+"\t"+powerParams.get(str)+"\n";
+    			aim+=str+'\t'+dcmFmt.format(powerParams.get(str))+'\t';
     		}
     		try {
 				modelIO.DataIntoSD(aim);
