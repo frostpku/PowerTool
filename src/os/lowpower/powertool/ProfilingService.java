@@ -14,9 +14,11 @@ import java.util.List;
 import java.util.Map;
 
 import android.app.ActivityManager;
+import android.app.ActivityManager.RunningTaskInfo;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -33,6 +35,7 @@ import android.telephony.PhoneStateListener;
 import android.telephony.SignalStrength;
 import android.telephony.TelephonyManager;
 import android.util.Log;
+import android.widget.Toast;
 
 
 public class ProfilingService extends Service{
@@ -59,7 +62,6 @@ public class ProfilingService extends Service{
 	ActivityManager am;
 	
 	private boolean profiling;
-	private PowerDataIO taskDataIO;
 
 	
 	@Override
@@ -89,24 +91,17 @@ public class ProfilingService extends Service{
 		if (profiling)
 			return;
 		profiling = true;
-		try {
-			taskDataIO=new PowerDataIO("/sdcard/", "APT_TaskData.txt");
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		if(mthread==null){
-			mthread = new TimerThread();
-			mthread.start();
-		}
 		standStats = new TrafficStats();
 		//  SIGNAL STRENGTH
 		MyListener = new MyPhoneStateListener();
 		Tel = ( TelephonyManager )getSystemService(Context.TELEPHONY_SERVICE);
 		Tel.listen(MyListener ,PhoneStateListener.LISTEN_SIGNAL_STRENGTHS);
-		
 		//  BLUETOOTH
 		bluetooth = BluetoothAdapter.getDefaultAdapter();  
+		if(mthread==null){
+			mthread = new TimerThread();
+			mthread.start();
+		}
 	}
 	private class TimerThread extends Thread{
 		
@@ -115,13 +110,13 @@ public class ProfilingService extends Service{
 		int maxSamplingTime = 60;//seconds
 		boolean usingWIFI;
 		WifiManager mWiFiManager;
-		public class WriteInfo{
+		public class ProfilingContent{
 			double cpu;
 			double brightness;
 			double wifi;
 			double net;
 			int frequency;
-			public WriteInfo()
+			public ProfilingContent()
 			{
 				cpu = 0.0f;
 				brightness = 0.0f;
@@ -137,6 +132,7 @@ public class ProfilingService extends Service{
 			long WIFIBytes[];
 			long netBytes[];
 			int screen[];
+			boolean counted;
 			
 			int samplingNumber;
 			
@@ -148,6 +144,7 @@ public class ProfilingService extends Service{
 				WIFIBytes = new long[maxSamplingTime+1];
 				netBytes = new long[maxSamplingTime+1];
 				screen = new int[maxSamplingTime+1];
+				counted = false;
 			}
 		}
 		
@@ -157,12 +154,12 @@ public class ProfilingService extends Service{
     		infoToWrite = "";
     		usingWIFI=true;
     	}
-    	public void setFileInfo(String fileName, HashMap<String, WriteInfo> mFileInfo) throws IOException
+    	public void setFileInfo(String fileName, HashMap<String, ProfilingContent> mFileInfo) throws IOException
     	{
     		File file;
     		FileWriter fw;
     		BufferedWriter bw;
-    		WriteInfo mWriteInfo;
+    		ProfilingContent mWriteInfo;
     		
     		file = new File(fileName);
     		if(!file.exists()) 
@@ -185,12 +182,18 @@ public class ProfilingService extends Service{
     			bw.write(13);
     			bw.write(10);
     		}
+    		bw.close();
+    		fw.close();
     	}
-    	public HashMap<String, WriteInfo> getFileInfo(String fileName){
-    		HashMap<String, WriteInfo> fileInfoMap = new HashMap<String, WriteInfo>();
+    	public HashMap<String, ProfilingContent> getFileInfo(String fileName){
+    		HashMap<String, ProfilingContent> fileInfoMap = new HashMap<String, ProfilingContent>();
     		try {
-                FileReader f = new FileReader(fileName);
-                BufferedReader br = new BufferedReader(f);
+    			File file;
+    			file = new File(fileName);
+    			if(!file.exists()) 
+    				file.createNewFile();
+                FileReader fr = new FileReader(file);
+                BufferedReader br = new BufferedReader(fr);
 
                 String line;
                 String[] arrs;
@@ -200,7 +203,7 @@ public class ProfilingService extends Service{
                 while ((line = br.readLine()) != null) {
                 	br.readLine();
                     arrs = line.split("\\t");
-                    WriteInfo mWriteInfo = new  WriteInfo();
+                    ProfilingContent mWriteInfo = new  ProfilingContent();
                     mWriteInfo.frequency = Integer.parseInt(arrs[1]);
                     mWriteInfo.cpu = Double.parseDouble(arrs[2]);
                     mWriteInfo.brightness = Double.parseDouble(arrs[3]);
@@ -208,7 +211,7 @@ public class ProfilingService extends Service{
                     mWriteInfo.net = Double.parseDouble(arrs[5]);
                     fileInfoMap.put(arrs[0], mWriteInfo);
                 }
-    		 f.close();
+    		 fr.close();
              br.close();
          } catch (FileNotFoundException e) {
              e.printStackTrace();
@@ -244,14 +247,25 @@ public class ProfilingService extends Service{
 	    				{
 	    					break;
 	    				}
+	    				Resources mResource;
 	    				List< ActivityManager.RunningAppProcessInfo > processes = am.getRunningAppProcesses(); 
-	    				
+	    				List<ActivityManager.RunningTaskInfo> runningTaskInfos = am.getRunningTasks(1) ;
+	    				String topActivityName="";
+	    		        if(runningTaskInfos != null){
+	    		             ComponentName f=runningTaskInfos.get(0).topActivity;
+	    		             topActivityName=f.getPackageName();
+	    		        }
+	    				for (String str:taskMap.keySet())
+	    				{
+	    					taskMap.get(str).counted = false;
+	    				}
 	    				for (ActivityManager.RunningAppProcessInfo process : processes)
 	    				{
 	    					int pid = process.pid;
 	    					int uid = process.uid;
 	    					String packageName = process.processName;
-	    					Resources mResource;
+	    					if (packageName.equals("system") || packageName.equals("com.Android.phone"))
+	    						continue;
 	    					if (taskMap.get(packageName) == null)
 	    					{
 	    						mResource = new Resources();
@@ -259,17 +273,25 @@ public class ProfilingService extends Service{
 	    					else 
 	    					{
 	    						 mResource = taskMap.get(packageName);
+	    						 if (mResource.counted)
+	    							 continue;
 	    					}
 	    					mResource.processCPUTime[mResource.samplingNumber] = getProcessCPUTime(pid);
 	    					mResource.totalCPUTime[mResource.samplingNumber] = getTotalCPUTime();
-	    					if (process.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND)
+	    					//if (process.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND)
+	    					if (packageName.equalsIgnoreCase(topActivityName))
 	    						mResource.screen[mResource.samplingNumber] = getBrightness();
 	    					if (usingWIFI)
 	    						mResource.WIFIBytes[mResource.samplingNumber] = getUIDTotalBytes(uid);
 	    					else 
 	    						mResource.netBytes[mResource.samplingNumber] = getUIDTotalBytes(uid);
 	    					mResource.samplingNumber++;
+	    					mResource.counted = true;
 	    					taskMap.put(packageName, mResource);
+	    					if (packageName.equalsIgnoreCase("android.process.acore"))
+	    					{
+	    						packageName = process.processName;
+	    					}
 	    				}
 	    				
 	    				List <ActivityManager.RunningServiceInfo> services = am.getRunningServices(maxServices);
@@ -278,44 +300,61 @@ public class ProfilingService extends Service{
 	    					int pid = service.pid;
 	    					int uid = service.uid;
 	    					String packageName = service.process;
-	    					Resources mResource;
+	    					if (packageName.equals("system") || packageName.equals("com.Android.phone"))
+	    						continue;
 	    					if (taskMap.get(packageName) == null)
 	    					{
 	    						mResource = new Resources();
-	    						mResource.processCPUTime[mResource.samplingNumber] = getProcessCPUTime(pid);
-		    					mResource.totalCPUTime[mResource.samplingNumber] = getTotalCPUTime();
-		    					if (service.foreground)
-		    						mResource.screen[mResource.samplingNumber] = getBrightness();
-		    					if (usingWIFI)
-		    						mResource.WIFIBytes[mResource.samplingNumber] = getUIDTotalBytes(uid);
-		    					else 
-		    						mResource.netBytes[mResource.samplingNumber] = getUIDTotalBytes(uid);
-		    					mResource.samplingNumber++;
-		    					taskMap.put(packageName, mResource);
 	    					}
+	    					else
+	    					{
+	    						mResource = taskMap.get(packageName);
+	    						 if (mResource.counted)
+	    							 continue;
+	    					}
+	    					mResource.processCPUTime[mResource.samplingNumber] = getProcessCPUTime(pid);
+		    				mResource.totalCPUTime[mResource.samplingNumber] = getTotalCPUTime();
+		    				if (service.foreground)
+		    					mResource.screen[mResource.samplingNumber] = getBrightness();
+		    				if (usingWIFI)
+		    					mResource.WIFIBytes[mResource.samplingNumber] = getUIDTotalBytes(uid);
+		    				else 
+		    					mResource.netBytes[mResource.samplingNumber] = getUIDTotalBytes(uid);
+		    				mResource.samplingNumber++;
+		    				mResource.counted = true;
+		    				taskMap.put(packageName, mResource);
 	    				}
 	    				Thread.sleep(1000);
 	    				count++;
 	    			}
 	    			if (count == maxSamplingTime)
 	    			{
-	    				HashMap<String, WriteInfo> fileInfo = getFileInfo("/sdcard/APT_TaskData");
+	    				HashMap<String, ProfilingContent> fileInfo = getFileInfo("/sdcard/APT_TaskData.txt");
+	    				if (fileInfo == null)
+	    				{
+	    					Toast.makeText(ProfilingService.this,  
+	    	                        "Visiting file error.",   
+	    	                        Toast.LENGTH_LONG).show(); 
+	    					return;
+	    				}
 	    				for (String str : taskMap.keySet())
 	    				{
 	    					Resources mResource = taskMap.get(str);
-	    					WriteInfo mWriteInfo;
+	    					ProfilingContent mWriteInfo;
+	    					
 	    					if (fileInfo.get(str) != null)
 	    					{
 	    						mWriteInfo = fileInfo.get(str);
 	    					}
 	    					else {
-	    						mWriteInfo = new WriteInfo();
+	    						mWriteInfo = new ProfilingContent();
 	    					}
 	    					mWriteInfo.frequency++;
 	    					for (int i = 1; i < mResource.samplingNumber; i++)
 	    					{
 	    						if (mResource.totalCPUTime[i] != mResource.totalCPUTime[i-1])
-	    							mWriteInfo.cpu += (mResource.processCPUTime[i] - mResource.processCPUTime[i-1])/(mResource.totalCPUTime[i] - mResource.totalCPUTime[i-1]);
+	    							mWriteInfo.cpu += (Double.parseDouble(String.valueOf(mResource.processCPUTime[i] - mResource.processCPUTime[i-1])))/
+	    											(Double.parseDouble(String.valueOf(mResource.totalCPUTime[i] - mResource.totalCPUTime[i-1])));
 	    						mWriteInfo.brightness += mResource.screen[i];
 	    						mWriteInfo.wifi += mResource.WIFIBytes[i] - mResource.WIFIBytes[i-1];
 	    						mWriteInfo.net += mResource.netBytes[i] -  mResource.netBytes[i-1];
@@ -323,7 +362,7 @@ public class ProfilingService extends Service{
 	    					fileInfo.put(str, mWriteInfo);
 	    				}
 	    				try {
-							setFileInfo("/sdcard/APT_TaskData", fileInfo);
+							setFileInfo("/sdcard/APT_TaskData.txt", fileInfo);
 						} catch (IOException e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();

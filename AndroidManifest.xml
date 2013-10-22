@@ -23,10 +23,11 @@
             </intent-filter>
         </activity>
         <service android:name="TrainingService"/>
+        <service android:name="ProfilingService"/>
     </application>
 <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+<uses-permission android:name="android.permission.GET_TASKS" />
 <uses-permission android:name="android.permission.SYSTEM_OVERLAY_WINDOW" /> 
-<uses-permission android:name="android.permission.READ_CONTACTS"> </uses-permission>
 <uses-permission android:name="android.permission.WRITE_SETTINGS"> </uses-permission>
 <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"> </uses-permission>
 <uses-permission android:name="com.android.launcher.permission.READ_SETTINGS"> </uses-permission>
