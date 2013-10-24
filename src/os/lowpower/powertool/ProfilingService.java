@@ -106,8 +106,9 @@ public class ProfilingService extends Service{
 	private class TimerThread extends Thread{
 		
 		HashMap<String, Resources> taskMap;
+		Resources totalResource;
 		int maxServices = 25;
-		int maxSamplingTime = 60;//seconds
+		int maxSamplingCount = 60;//seconds
 		boolean usingWIFI;
 		WifiManager mWiFiManager;
 		public class ProfilingContent{
@@ -139,11 +140,11 @@ public class ProfilingService extends Service{
 			public Resources()
 			{
 				samplingNumber = 0;
-				processCPUTime = new long[maxSamplingTime+1];
-				totalCPUTime = new long[maxSamplingTime+1];
-				WIFIBytes = new long[maxSamplingTime+1];
-				netBytes = new long[maxSamplingTime+1];
-				screen = new int[maxSamplingTime+1];
+				processCPUTime = new long[maxSamplingCount+1];
+				totalCPUTime = new long[maxSamplingCount+1];
+				WIFIBytes = new long[maxSamplingCount+1];
+				netBytes = new long[maxSamplingCount+1];
+				screen = new int[maxSamplingCount+1];
 				counted = false;
 			}
 		}
@@ -229,6 +230,7 @@ public class ProfilingService extends Service{
 	    			int count =0;
 	    			infoToWrite = "";
 	    			taskMap= new HashMap<String, Resources>();
+	    			totalResource  = new Resources();
 	    			mWiFiManager=(WifiManager)getSystemService(Context.WIFI_SERVICE);
 	    			if (mWiFiManager.getWifiState()==WifiManager.WIFI_STATE_ENABLED) 
 	    				usingWIFI = true;
@@ -236,7 +238,7 @@ public class ProfilingService extends Service{
 	    			
 	    			// a consecutive 1 min's sampling
 	    			
-	    			while (count < maxSamplingTime)
+	    			while (count < maxSamplingCount)
 	    			{
 	    				//IF WIFI state changes during this sampling interval, this sampling would be regarded invalid.
 	    				if ((mWiFiManager.getWifiState()==WifiManager.WIFI_STATE_ENABLED) && usingWIFI== false)
@@ -247,6 +249,12 @@ public class ProfilingService extends Service{
 	    				{
 	    					break;
 	    				}
+	    				totalResource.totalCPUTime[count] = getTotalCPUTime();
+	    				totalResource.screen[count] = getBrightness();
+	    				if (usingWIFI)
+	    					totalResource.WIFIBytes[count] =getTotalWIFIBytes();
+	    				else totalResource.netBytes[count] = getTotalMobileBytes();
+	    				
 	    				Resources mResource;
 	    				List< ActivityManager.RunningAppProcessInfo > processes = am.getRunningAppProcesses(); 
 	    				List<ActivityManager.RunningTaskInfo> runningTaskInfos = am.getRunningTasks(1) ;
@@ -259,6 +267,7 @@ public class ProfilingService extends Service{
 	    				{
 	    					taskMap.get(str).counted = false;
 	    				}
+	    				
 	    				for (ActivityManager.RunningAppProcessInfo process : processes)
 	    				{
 	    					int pid = process.pid;
@@ -327,7 +336,7 @@ public class ProfilingService extends Service{
 	    				Thread.sleep(1000);
 	    				count++;
 	    			}
-	    			if (count == maxSamplingTime)
+	    			if (count == maxSamplingCount)
 	    			{
 	    				HashMap<String, ProfilingContent> fileInfo = getFileInfo("/sdcard/APT_TaskData.txt");
 	    				if (fileInfo == null)
@@ -352,6 +361,8 @@ public class ProfilingService extends Service{
 	    					mWriteInfo.frequency++;
 	    					for (int i = 1; i < mResource.samplingNumber; i++)
 	    					{
+	    						if (mResource.processCPUTime[i] < mResource.processCPUTime[i-1])
+	    							continue;
 	    						if (mResource.totalCPUTime[i] != mResource.totalCPUTime[i-1])
 	    							mWriteInfo.cpu += (Double.parseDouble(String.valueOf(mResource.processCPUTime[i] - mResource.processCPUTime[i-1])))/
 	    											(Double.parseDouble(String.valueOf(mResource.totalCPUTime[i] - mResource.totalCPUTime[i-1])));

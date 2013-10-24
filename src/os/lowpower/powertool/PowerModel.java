@@ -93,7 +93,7 @@ public class PowerModel{
         PowerDataIO filteredDataIO;
         DecimalFormat dcmFmt = new DecimalFormat("0.00");
         try {
-        	filteredDataIO = new PowerDataIO("/sdcard/","APT_filterDATA.txt");
+        	filteredDataIO = new PowerDataIO("/sdcard/","APT_FilterDATA.txt");
         	filteredDataIO.DataIntoSD("============");
         	for (int i = 0 ; i < dataNum; i++)
             {

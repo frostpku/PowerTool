@@ -213,9 +213,9 @@ public class TrainingService extends Service{
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-	    		if (counter == 5)
+	    		if (counter == 2)
 	    		{
-	    			TrainingService.this.VUpdateTime = (int)savedT/5 +1;
+	    			TrainingService.this.VUpdateTime = (int)savedT/2 +1;
 	    			try {
 	    				voltageIO.DataOverwrittenIntoSD(String.valueOf(VUpdateTime));
 					} catch (IOException e1) {
