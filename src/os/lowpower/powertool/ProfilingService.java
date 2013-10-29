@@ -28,7 +28,9 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.TrafficStats;
 import android.net.wifi.WifiManager;
+import android.os.Environment;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.provider.Settings.SettingNotFoundException;
 import android.telephony.PhoneStateListener;
@@ -54,6 +56,7 @@ public class ProfilingService extends Service{
 	private long lastTime;
 	private long mobileVol;
 	private long lastWIFI;
+	private PowerManager pm;
 	private TrafficStats standStats;
     
 	private String infoToWrite;
@@ -62,6 +65,7 @@ public class ProfilingService extends Service{
 	ActivityManager am;
 	
 	private boolean profiling;
+	private PowerDataIO testIO;
 
 	
 	@Override
@@ -86,6 +90,8 @@ public class ProfilingService extends Service{
 	public void initVaribles(){
 		profiling =false;
 		am = (ActivityManager) this.getSystemService(ACTIVITY_SERVICE);
+		pm = (PowerManager)getSystemService(Context.POWER_SERVICE);
+		
 	}
 	public void startProfiling(){
 		if (profiling)
@@ -107,8 +113,10 @@ public class ProfilingService extends Service{
 		
 		HashMap<String, Resources> taskMap;
 		Resources totalResource;
-		int maxServices = 25;
-		int maxSamplingCount = 60;//seconds
+		int maxServices = 300;
+		int maxSamplingCount = 60;// 60
+		int windowInterval = 30000; // window interval: 5 minutes
+		int profilingInterval = 1000; // profiling interval: 1 second
 		boolean usingWIFI;
 		WifiManager mWiFiManager;
 		public class ProfilingContent{
@@ -117,6 +125,7 @@ public class ProfilingService extends Service{
 			double wifi;
 			double net;
 			int frequency;
+			int count;
 			public ProfilingContent()
 			{
 				cpu = 0.0f;
@@ -124,6 +133,7 @@ public class ProfilingService extends Service{
 				wifi = 0.0f;
 				net= 0.0f;
 				frequency = 0;
+				count =0;
 			}
 		}
 		public class Resources{
@@ -155,7 +165,7 @@ public class ProfilingService extends Service{
     		infoToWrite = "";
     		usingWIFI=true;
     	}
-    	public void setFileInfo(String fileName, HashMap<String, ProfilingContent> mFileInfo) throws IOException
+    	public void setFileInfo(String fileName, Map<String, ProfilingContent> mFileInfo) throws IOException
     	{
     		File file;
     		FileWriter fw;
@@ -175,6 +185,7 @@ public class ProfilingService extends Service{
     			aim="";
     			aim+=	str +'\t' + 
     					String.valueOf(mWriteInfo.frequency) +'\t'+
+    					String.valueOf(mWriteInfo.count)+'\t'+
     					String.valueOf(mWriteInfo.cpu) + '\t' + 
     					String.valueOf(mWriteInfo.brightness) +'\t'+
     					String.valueOf(mWriteInfo.wifi) +'\t'+
@@ -186,8 +197,9 @@ public class ProfilingService extends Service{
     		bw.close();
     		fw.close();
     	}
-    	public HashMap<String, ProfilingContent> getFileInfo(String fileName){
-    		HashMap<String, ProfilingContent> fileInfoMap = new HashMap<String, ProfilingContent>();
+    	public Map<String, ProfilingContent> getFileInfo(String fileName){
+    		Map<String, ProfilingContent> fileInfoMap = new HashMap<String, ProfilingContent>();
+    		fileInfoMap.clear();
     		try {
     			File file;
     			file = new File(fileName);
@@ -199,17 +211,18 @@ public class ProfilingService extends Service{
                 String line;
                 String[] arrs;
 
-                //format:   0			1			2		3				4			5
-                //			processName	frequency	averCPU	averBrightness	averWIFI	averNET
+                //format:   0			1			2		3				4			5		6
+                //			processName	frequency	count	accuCPU	accuBrightness	accuWIFI	accuNET
                 while ((line = br.readLine()) != null) {
                 	br.readLine();
                     arrs = line.split("\\t");
                     ProfilingContent mWriteInfo = new  ProfilingContent();
                     mWriteInfo.frequency = Integer.parseInt(arrs[1]);
-                    mWriteInfo.cpu = Double.parseDouble(arrs[2]);
-                    mWriteInfo.brightness = Double.parseDouble(arrs[3]);
-                    mWriteInfo.wifi = Double.parseDouble(arrs[4]);
-                    mWriteInfo.net = Double.parseDouble(arrs[5]);
+                    mWriteInfo.count = Integer.parseInt(arrs[2]);
+                    mWriteInfo.cpu = Double.parseDouble(arrs[3]);
+                    mWriteInfo.brightness = Double.parseDouble(arrs[4]);
+                    mWriteInfo.wifi = Double.parseDouble(arrs[5]);
+                    mWriteInfo.net = Double.parseDouble(arrs[6]);
                     fileInfoMap.put(arrs[0], mWriteInfo);
                 }
     		 fr.close();
@@ -225,6 +238,12 @@ public class ProfilingService extends Service{
     	}
     	public void run() {
     		try {
+    			try {
+					testIO = new PowerDataIO("/sdcard/","APT_RunningList.txt");
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
     			while (!Thread.interrupted()) {
 	    			Log.i("frost","Running Service");
 	    			int count =0;
@@ -288,7 +307,7 @@ public class ProfilingService extends Service{
 	    					mResource.processCPUTime[mResource.samplingNumber] = getProcessCPUTime(pid);
 	    					mResource.totalCPUTime[mResource.samplingNumber] = getTotalCPUTime();
 	    					//if (process.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND)
-	    					if (packageName.equalsIgnoreCase(topActivityName))
+	    					if (packageName.equalsIgnoreCase(topActivityName) && pm.isScreenOn())
 	    						mResource.screen[mResource.samplingNumber] = getBrightness();
 	    					if (usingWIFI)
 	    						mResource.WIFIBytes[mResource.samplingNumber] = getUIDTotalBytes(uid);
@@ -323,7 +342,7 @@ public class ProfilingService extends Service{
 	    					}
 	    					mResource.processCPUTime[mResource.samplingNumber] = getProcessCPUTime(pid);
 		    				mResource.totalCPUTime[mResource.samplingNumber] = getTotalCPUTime();
-		    				if (service.foreground)
+		    				if (service.foreground && pm.isScreenOn())
 		    					mResource.screen[mResource.samplingNumber] = getBrightness();
 		    				if (usingWIFI)
 		    					mResource.WIFIBytes[mResource.samplingNumber] = getUIDTotalBytes(uid);
@@ -333,12 +352,12 @@ public class ProfilingService extends Service{
 		    				mResource.counted = true;
 		    				taskMap.put(packageName, mResource);
 	    				}
-	    				Thread.sleep(1000);
+	    				Thread.sleep(profilingInterval);
 	    				count++;
 	    			}
 	    			if (count == maxSamplingCount)
 	    			{
-	    				HashMap<String, ProfilingContent> fileInfo = getFileInfo("/sdcard/APT_TaskData.txt");
+	    				Map<String, ProfilingContent> fileInfo = getFileInfo("/sdcard/APT_TaskData.txt");
 	    				if (fileInfo == null)
 	    				{
 	    					Toast.makeText(ProfilingService.this,  
@@ -346,10 +365,14 @@ public class ProfilingService extends Service{
 	    	                        Toast.LENGTH_LONG).show(); 
 	    					return;
 	    				}
+	    				String testSTR = "=====\n";
 	    				for (String str : taskMap.keySet())
 	    				{
 	    					Resources mResource = taskMap.get(str);
 	    					ProfilingContent mWriteInfo;
+	    					
+	    					testSTR+=str;
+	    					testSTR +="\r\n";
 	    					
 	    					if (fileInfo.get(str) != null)
 	    					{
@@ -359,28 +382,31 @@ public class ProfilingService extends Service{
 	    						mWriteInfo = new ProfilingContent();
 	    					}
 	    					mWriteInfo.frequency++;
+	    					mWriteInfo.count+= mResource.samplingNumber-1;
 	    					for (int i = 1; i < mResource.samplingNumber; i++)
 	    					{
-	    						if (mResource.processCPUTime[i] < mResource.processCPUTime[i-1])
-	    							continue;
-	    						if (mResource.totalCPUTime[i] != mResource.totalCPUTime[i-1])
+	    						if (mResource.totalCPUTime[i] != mResource.totalCPUTime[i-1] 
+	    						&& mResource.processCPUTime[i] > mResource.processCPUTime[i-1])
 	    							mWriteInfo.cpu += (Double.parseDouble(String.valueOf(mResource.processCPUTime[i] - mResource.processCPUTime[i-1])))/
 	    											(Double.parseDouble(String.valueOf(mResource.totalCPUTime[i] - mResource.totalCPUTime[i-1])));
 	    						mWriteInfo.brightness += mResource.screen[i];
-	    						mWriteInfo.wifi += mResource.WIFIBytes[i] - mResource.WIFIBytes[i-1];
-	    						mWriteInfo.net += mResource.netBytes[i] -  mResource.netBytes[i-1];
+	    						if (mResource.WIFIBytes[i] > mResource.WIFIBytes[i-1])
+	    							mWriteInfo.wifi += mResource.WIFIBytes[i] - mResource.WIFIBytes[i-1];
+	    						if ( mResource.netBytes[i] > mResource.netBytes[i-1])
+	    							mWriteInfo.net += mResource.netBytes[i] -  mResource.netBytes[i-1];
 	    					}
 	    					fileInfo.put(str, mWriteInfo);
 	    				}
+	    				
 	    				try {
 							setFileInfo("/sdcard/APT_TaskData.txt", fileInfo);
+							testIO.DataIntoSD(testSTR);
 						} catch (IOException e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
 						}
 	    			}
-	    			// sampling frequency : 10min
-					Thread.sleep(600000);
+					Thread.sleep(windowInterval);
 					
     			}
     		} catch (InterruptedException e) {
@@ -414,6 +440,7 @@ public class ProfilingService extends Service{
 	        String[] toks = load.split(" ");
 	        aim = Long.parseLong(toks[13]) + Long.parseLong(toks[14]) + Long.parseLong(toks[15])
 	              + Long.parseLong(toks[16]);
+	        reader.close();
     	}
     	 catch (IOException ex) {
              ex.printStackTrace();
@@ -432,7 +459,7 @@ public class ProfilingService extends Service{
 	        idle = Long.parseLong(toks[5]);
 	        cpu = Long.parseLong(toks[2]) + Long.parseLong(toks[3]) + Long.parseLong(toks[4])
 	              + Long.parseLong(toks[6]) + Long.parseLong(toks[7]) + Long.parseLong(toks[8]);
-	        
+	        reader.close();
     	}
     	 catch (IOException ex) {
              ex.printStackTrace();
@@ -465,6 +492,7 @@ public class ProfilingService extends Service{
 	        CpuUsage= (float)(cpu2 - cpu1) / ((cpu2 + idle2) - (cpu1 + idle1));
 	        cpu1 = cpu2;
 	        idle1 = idle2;
+	        reader.close();
     	} catch (IOException ex) {
             ex.printStackTrace();
         }
@@ -554,18 +582,18 @@ public class ProfilingService extends Service{
 	}
 	public long getTotalMobileBytes()
 	{
-		long total =this.standStats.getMobileRxBytes()+this.standStats.getMobileTxBytes();
+		long total =standStats.getMobileRxBytes()+standStats.getMobileTxBytes();
 		return total;
 	}
 	public long getTotalWIFIBytes()
 	{
-		long total =this.standStats.getTotalRxBytes()+this.standStats.getTotalTxBytes()
-					-this.standStats.getMobileRxBytes()-this.standStats.getMobileTxBytes();
+		long total =standStats.getTotalRxBytes()+standStats.getTotalTxBytes()
+					-standStats.getMobileRxBytes()-standStats.getMobileTxBytes();
 		return total;
 	}
 	public long getUIDTotalBytes(int uid)
 	{
-		long total =this.standStats.getUidRxBytes(uid)+this.standStats.getUidTxBytes(uid);
+		long total =standStats.getUidRxBytes(uid)+standStats.getUidTxBytes(uid);
 		return total;
 	}
 	public long getDeltaWIFIBytes()

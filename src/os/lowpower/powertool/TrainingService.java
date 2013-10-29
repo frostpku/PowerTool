@@ -18,6 +18,7 @@ import android.media.AudioManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.TrafficStats;
+import android.os.Environment;
 import android.os.IBinder;
 import android.provider.Settings;
 import android.provider.Settings.SettingNotFoundException;
@@ -124,7 +125,7 @@ public class TrainingService extends Service{
 		profiling = true;
 		writeFlag = 0;
 		try {
-			trainingDataIO=new PowerDataIO("/sdcard/", "APT_TrainingData.txt");
+			trainingDataIO=new PowerDataIO("/sdcard/" , "APT_TrainingData.txt");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -193,6 +194,7 @@ public class TrainingService extends Service{
     	long currentV;
     	long savedT;
     	int counter;
+    	int trainVTimes;
     	//setCPUThread t_cpu;
     	public getVTimeThread()
     	{	
@@ -202,6 +204,7 @@ public class TrainingService extends Service{
     		lastV = 0;
     		counter = 0;
     		savedT = 0;
+    		trainVTimes = 2;
     		//t_cpu = new setCPUThread();
     	}
     	public void run()
@@ -213,9 +216,9 @@ public class TrainingService extends Service{
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-	    		if (counter == 2)
+	    		if (counter == trainVTimes)
 	    		{
-	    			TrainingService.this.VUpdateTime = (int)savedT/2 +1;
+	    			TrainingService.this.VUpdateTime = (int)savedT/trainVTimes;
 	    			try {
 	    				voltageIO.DataOverwrittenIntoSD(String.valueOf(VUpdateTime));
 					} catch (IOException e1) {
@@ -362,6 +365,7 @@ public class TrainingService extends Service{
 	        CpuUsage= (float)(cpu2 - cpu1) / ((cpu2 + idle2) - (cpu1 + idle1));
 	        cpu1 = cpu2;
 	        idle1 = idle2;
+	        reader.close();
     	} catch (IOException ex) {
             ex.printStackTrace();
         }

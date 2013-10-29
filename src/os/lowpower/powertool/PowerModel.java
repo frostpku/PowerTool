@@ -4,6 +4,8 @@ import java.io.*;
 import java.text.DecimalFormat;
 import java.util.*;
 
+import android.os.Environment;
+
 public class PowerModel{
     private String trainDataFileName;
     //you can decide the file format by yourself. i would generate file with your format
@@ -21,7 +23,7 @@ public class PowerModel{
         powerParams.clear();
         trainDataFileName = "";
         try {
-			modelIO = new PowerDataIO("/sdcard/","APT_Model.txt");
+			modelIO = new PowerDataIO("/sdcard/" ,"APT_Model.txt");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
