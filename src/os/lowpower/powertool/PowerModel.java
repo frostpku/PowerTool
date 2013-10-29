@@ -52,7 +52,6 @@ public class PowerModel{
             long lastTime = 0;
             long startVoltage =0;
             while ((line = br.readLine()) != null) {
-            	br.readLine();
                 arrs = line.split("\\t");
                 int i;
                 

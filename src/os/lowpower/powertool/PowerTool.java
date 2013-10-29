@@ -108,7 +108,7 @@ public class PowerTool extends Activity {
 
 			public void onClick(DialogInterface dialog, int which) {
 				// TODO Auto-generated method stub
-				if (myModel.DoModeling("/sdcard/APT_Data.txt"))
+				if (myModel.DoModeling("/sdcard/APT_TrainingData.txt"))
 				{
 					Toast.makeText(PowerTool.this,  
 	                        "Model generated successfully.",   

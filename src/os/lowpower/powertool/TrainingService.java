@@ -310,7 +310,6 @@ public class TrainingService extends Service{
 		    					     +String.valueOf(averAudio)+'\t'
 		    					    // +String.valueOf(averVoltage);
 		    					     +String.valueOf(getCurrentVoltage());
-							infoToWrite+='\n';
 							trainingDataIO.DataIntoSD(infoToWrite);
 						} catch (IOException e) {
 							// TODO Auto-generated catch block
