@@ -6,7 +6,6 @@ import java.io.RandomAccessFile;
 import java.util.Calendar;
 import java.util.regex.Pattern;
 
-
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
@@ -44,6 +43,7 @@ public class TrainingService extends Service{
 	private int batterylevel;
 	private int currentSignalStrenght;
 	private long lastVoltage;
+	private long lastCurrent;
 	private long lastTime;
 	private long mobileVol;
 	private long lastWIFI;
@@ -157,6 +157,12 @@ public class TrainingService extends Service{
         mthread.interrupt();
         mthread=null;
         writeFlag = 0;
+        if (VUpdateTime ==0)
+        {
+        	Toast.makeText(TrainingService.this,  
+                    "Sorry, no voltage change has been detected during the last training.",   
+                    Toast.LENGTH_LONG).show();  
+        }
 	}
 	private class MyPhoneStateListener extends PhoneStateListener{
 
@@ -241,7 +247,7 @@ public class TrainingService extends Service{
 	    				startT = getCurrentTime();
 	    			}
 	    			else if (endT == 0 && currentV != lastV)
-	    			{
+	    			{ 
 	    				endT = getCurrentTime();
 	    				savedT += endT - startT;
 	    				startT = endT;
@@ -265,6 +271,7 @@ public class TrainingService extends Service{
 		private float averNet;
 		private float averAudio;
 		private float averVoltage;
+		private float averCurrent;
     	public TimerThread()
     	{
     		infoToWrite = "";
@@ -287,6 +294,7 @@ public class TrainingService extends Service{
     			lastWIFI = getTotalWIFIBytes();
     			lastTime = getCurrentTime();
     			lastVoltage = getCurrentVoltage();
+    			lastCurrent = getCurrent();
     			
     			while (!Thread.interrupted()) {
 	    			Log.i("frost","Running Service");
@@ -302,6 +310,8 @@ public class TrainingService extends Service{
 							averAudio = (float) accAudio / VUpdateTime;
 							averVoltage = getDeltaVoltage();
 							
+							long aim = (getCurrent() == 0)? getCurrentVoltage():getCurrent();
+							
 							infoToWrite= String.valueOf(getCurrentTime())+'\t'
 		    						 +String.valueOf(averWIFI)+'\t'
 		    						 +String.valueOf(averCPU)+'\t'
@@ -309,7 +319,8 @@ public class TrainingService extends Service{
 		    					     +String.valueOf(averNet)+'\t'
 		    					     +String.valueOf(averAudio)+'\t'
 		    					    // +String.valueOf(averVoltage);
-		    					     +String.valueOf(getCurrentVoltage());
+		    					    // +String.valueOf(getCurrentVoltage());
+		    					     + String.valueOf(aim);
 							trainingDataIO.DataIntoSD(infoToWrite);
 						} catch (IOException e) {
 							// TODO Auto-generated catch block
@@ -482,5 +493,12 @@ public class TrainingService extends Service{
 		long delta = currentVoltage - lastVoltage;
 		lastVoltage = currentVoltage;
 		return delta;
+	}
+	public long getCurrent(){
+		Long value = CurrentReaderFactory.getValue();
+		if (value == null) {
+			return 0;
+		}
+		return value;
 	}
 }

@@ -3,8 +3,10 @@ package os.lowpower.powertool;
 import java.io.*;
 import java.text.DecimalFormat;
 import java.util.*;
+import java.util.regex.Pattern;
 
 import android.os.Environment;
+import android.widget.Toast;
 
 public class PowerModel{
     private String trainDataFileName;
@@ -13,14 +15,16 @@ public class PowerModel{
     private HashMap<String, Double> powerParams = new HashMap<String, Double>();
     //<key, value> example: <"wifi", 4.5>
     //All keys: "wifi" "cpu" "screen" "3g" "audio" "constant"
-    
+    private PowerDataIO voltageIO;
+    public long VUpdateTime;
     private double param_screen_none_linear = 0.0f;
     PowerDataIO modelIO;
-    private String[] keyName = {"wifi", "cpu", "screen", "3g", "audio", "constant"};
+    private String[] keyName = {"wifi", "cpu", "screen", "net", "audio", "constant"};
     //IO??
     public PowerModel()
     {
         powerParams.clear();
+        VUpdateTime = 0;
         trainDataFileName = "";
         try {
 			modelIO = new PowerDataIO("/sdcard/" ,"APT_Model.txt");
@@ -30,10 +34,36 @@ public class PowerModel{
 		}
     }
 
-    
+    private boolean isVFileValid()
+	{
+		try {
+			voltageIO = new PowerDataIO("/sdcard/","APT_VTime.txt");
+			String tmp;
+			tmp = voltageIO.DataFromSD();
+			if (tmp == "" || !isNumeric(tmp))
+				return false;
+			VUpdateTime = Integer.valueOf(tmp);
+			return true;
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return false;
+	}
 
+    private static boolean isNumeric(String str){ 
+	    Pattern pattern = Pattern.compile("[0-9]*"); 
+	    return pattern.matcher(str).matches();    
+	 } 
+    
     private boolean calculateParams()
     {
+    	if (!isVFileValid())
+    	{
+    		return false;
+    	}
+    	if (VUpdateTime <= 0)
+    		return false;
         int paramNum = keyName.length -1;
         //int maxDataNum = 604800; // 3600*24*7
         int maxDataNum = 86400;
@@ -47,22 +77,34 @@ public class PowerModel{
             FileReader f = new FileReader(trainDataFileName);
             BufferedReader br = new BufferedReader(f);
 
+            if (f==null || br == null)
+            	return false;
             String line;
             String[] arrs;
             long lastTime = 0;
             long startVoltage =0;
             while ((line = br.readLine()) != null) {
                 arrs = line.split("\\t");
+                if (arrs.length == 1 && arrs[0]=="")
+                	continue;
+                if (arrs.length != paramNum+2)
+                	return false;
                 int i;
                 
-                if (Long.valueOf(arrs[0]) -lastTime >=100)
+                if (lastTime == 0)
                 {
                 	startVoltage =Long.valueOf(arrs[paramNum+1]);
                 	lastTime = Long.valueOf(arrs[0]);
                 	continue;
                 }
-              //adjacent events' time should be less than 5 seconds, otherwise regarded as invalid events.
-                if (Long.valueOf(arrs[0]) -lastTime <=5)
+                if (Double.valueOf(arrs[2]) < 0)
+                {
+                	//startVoltage =Long.valueOf(arrs[paramNum+1]);
+                	lastTime = Long.valueOf(arrs[0]);
+                	continue;
+                }
+              //adjacent events' time should be less than (VUpdateTime+3) seconds, otherwise regarded as invalid events.
+                if (Long.valueOf(arrs[0]) -lastTime <=VUpdateTime+2)
                 {
                 	lastTime = Long.valueOf(arrs[0]);
                 	Long deltaV = Long.valueOf(arrs[paramNum+1]) - startVoltage;
@@ -76,6 +118,9 @@ public class PowerModel{
                 	}
                 	deltaVotage[dataNum] = deltaV;
                     dataNum++;
+                }
+                else{
+                	lastTime = Long.valueOf(arrs[0]);
                 }
                 
             }
@@ -165,16 +210,18 @@ public class PowerModel{
     public boolean DoModeling(String fileName)
     {
     	trainDataFileName = fileName;
-    	DecimalFormat dcmFmt = new DecimalFormat("0.00000");
+    	DecimalFormat dcmFmt = new DecimalFormat("0.0000000");
     	if (calculateParams())
     	{
     		String aim="";
     		for (String str:powerParams.keySet())
     		{
-    			aim+=str+'\t'+dcmFmt.format(powerParams.get(str))+'\t';
+    			aim+=str+'\t'+dcmFmt.format(powerParams.get(str));
+    			aim+='\n';
     		}
     		try {
-				modelIO.DataIntoSD(aim);
+				//modelIO.DataIntoSD(aim);
+				modelIO.DataOverwrittenIntoSD(aim);
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();

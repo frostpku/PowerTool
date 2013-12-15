@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" 
+	android:orientation="vertical" 
+	android:layout_width="fill_parent"
+	android:layout_height="fill_parent">
+	<LinearLayout 
+		android:orientation="vertical"
+		android:layout_width="wrap_content"
+		android:gravity="center_vertical" 
+    	android:layout_height="40dp">
+		<TextView       
+			android:layout_width="wrap_content" 
+		    android:layout_height="wrap_content" 
+		    android:textSize="16sp"
+		    android:textStyle="bold" 
+		    android:text="常用前台任务"/>
+	</LinearLayout>
+	
+	<TextView  
+        android:layout_width="fill_parent"  
+        android:layout_height="5px"  
+        android:paddingTop="2px"  
+        android:paddingBottom="2px"  
+        android:background="#666666"  
+    />
+	<LinearLayout android:orientation="vertical"
+		android:layout_width="fill_parent"
+		android:layout_height="wrap_content" 
+		android:visibility="gone">
+		<Button 
+			android:layout_width="wrap_content" 
+			android:layout_height="wrap_content" />
+	</LinearLayout>
+	<ListView 
+		android:id="@+id/listbody" 
+		android:layout_width="fill_parent"
+		android:layout_height="fill_parent" 
+	/>
+</LinearLayout>

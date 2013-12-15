@@ -24,7 +24,7 @@ public final class R {
         public static final int ic_launcher=0x7f020000;
     }
     public static final class id {
-        public static final int action_settings=0x7f080008;
+        public static final int action_settings=0x7f08000f;
         public static final int button1=0x7f080000;
         public static final int button2=0x7f080001;
         public static final int button3=0x7f080002;
@@ -33,9 +33,20 @@ public final class R {
         public static final int button6=0x7f080005;
         public static final int button7=0x7f080006;
         public static final int button8=0x7f080007;
+        public static final int button9=0x7f080008;
+        public static final int image=0x7f080009;
+        public static final int listbody=0x7f08000b;
+        public static final int relativelayout1=0x7f08000c;
+        public static final int taskName=0x7f080010;
+        public static final int text=0x7f08000a;
+        public static final int view=0x7f08000d;
+        public static final int view1=0x7f08000e;
     }
     public static final class layout {
         public static final int activity_power_tool=0x7f030000;
+        public static final int item=0x7f030001;
+        public static final int list_main=0x7f030002;
+        public static final int task_detail=0x7f030003;
     }
     public static final class menu {
         public static final int power_tool=0x7f070000;

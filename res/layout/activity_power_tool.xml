@@ -16,7 +16,6 @@
         android:layout_alignParentTop="true"
         android:layout_marginLeft="11dp"
         android:text="StartTraining" />
-
     <Button
         android:id="@+id/button2"
         android:layout_width="wrap_content"
@@ -26,7 +25,6 @@
         android:layout_alignParentRight="true"
         android:layout_toRightOf="@+id/button1"
         android:text="StopTraining " />
-
     <Button
         android:id="@+id/button3"
         android:layout_width="wrap_content"
@@ -36,7 +34,6 @@
         android:layout_marginTop="16dp"
         android:layout_toLeftOf="@+id/button2"
         android:text="DoModeling" />
-
     <Button
         android:id="@+id/button4"
         android:layout_width="wrap_content"
@@ -55,7 +52,6 @@
         android:layout_below="@+id/button3"
         android:layout_marginTop="20dp"
         android:text="StartProfiling" />
-
     <Button
         android:id="@+id/button6"
         android:layout_width="wrap_content"
@@ -65,7 +61,6 @@
         android:layout_alignLeft="@+id/button4"
         android:layout_alignRight="@+id/button4"
         android:text="StopProfiling" />
-
     <Button
         android:id="@+id/button7"
         android:layout_width="wrap_content"
@@ -74,7 +69,6 @@
         android:layout_alignRight="@+id/button3"
         android:layout_centerVertical="true"
         android:text="ShowApps" />
-
     <Button
         android:id="@+id/button8"
         android:layout_width="wrap_content"
@@ -84,5 +78,15 @@
         android:layout_alignLeft="@+id/button6"
         android:layout_alignRight="@+id/button6"
         android:text="PredictApps" />
+
+    <Button
+        android:id="@+id/button9"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignLeft="@+id/button7"
+        android:layout_alignRight="@+id/button5"
+        android:layout_below="@+id/button7"
+        android:layout_marginTop="37dp"
+        android:text="AutoChangeBrightness" />
 
 </RelativeLayout>
